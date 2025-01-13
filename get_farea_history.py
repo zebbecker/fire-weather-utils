@@ -5,8 +5,7 @@ Outputs a CSV with a sorted timeseries of farea, primarykey, and perimeter centr
 
 E.g. -> farea_CONUS_415.csv
 """
-
-import requests
+import sys
 import pandas as pd
 import geopandas as gpd 
 from owslib.ogcapi.features import Features 
@@ -27,7 +26,7 @@ res = api.collection_items(
 
 if len(res["features"]) < 1:
     print(f"No fires found matching {REGION} fireid {FIRE_ID}")
-    exit()
+    sys.exit()
 
 gdf = gpd.GeoDataFrame.from_features(res["features"]).set_crs("epsg:4326")
 

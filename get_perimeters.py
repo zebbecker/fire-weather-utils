@@ -3,7 +3,7 @@ Script to query FEDS API for a specific fireID within a named region.
 
 Outputs a shapefile with each perimeter for that fire. 
 """
-
+import sys
 import pandas as pd
 import geopandas as gpd 
 from owslib.ogcapi.features import Features 
@@ -23,7 +23,7 @@ res = api.collection_items(
 
 if len(res["features"]) < 1:
     print(f"No fires found matching {REGION} fireid {FIRE_ID}")
-    exit()
+    sys.exit()
 
 gdf = gpd.GeoDataFrame.from_features(res["features"]).set_crs("epsg:4326")
 print(f"Returned {len(gdf)} perimeters for {REGION} fireid {FIRE_ID}.")
