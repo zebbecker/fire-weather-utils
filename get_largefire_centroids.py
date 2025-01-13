@@ -10,16 +10,19 @@ Output: example20241201_20241208.csv
 import sys 
 import requests
 import datetime as dt 
+import pandas as pd
 import geopandas as gpd 
 from owslib.ogcapi.features import Features 
 
 # start date for query, inclusive 
 START = "2025-01-01T00:00:00+00:00"
 
+
 # end date for query, exclusive
 STOP = "2025-01-13T00:00:00+00:00"
 
-OUT_FILE_PREFIX = "example"
+
+OUT_FILE_PREFIX = "fixed_example"
 
 # assumes WGS84
 # BBOX = ["-126.4", "24.0", "-61.4", "49.4"] # CONUS, roughly
@@ -58,7 +61,7 @@ while next_link:
     )
 
 
-perims = gpd.pd.concat(gdfs, ignore_index=True)
+perims = pd.concat(gdfs, ignore_index=True)
 
 print(f"Returned {len(perims)} perimeters")
 
@@ -90,7 +93,12 @@ while next_link:
         (link['href'] for link in res['links'] if link['rel'] == 'next'), None
     )
 
-gdf = gpd.pd.concat(gdfs, ignore_index=True)
+gdf = pd.concat(gdfs, ignore_index=True)
+
+gdf["t"] = pd.to_datetime(gdf["t"])
+
+start = pd.Timestamp(START).date()
+stop = pd.Timestamp(STOP).date()
 
 # output csv with centroid, start time, latest time, latest size for each fireid
 fires = []
@@ -100,15 +108,21 @@ for fid in gdf.fireid.unique():
     for region in id_rows.region.unique():
         
         rows = id_rows[id_rows["region"] == region].sort_values(by='t', ascending=False)
-        fire = {
-            'fireid': fid, 
-            'start_t': rows.t.min(), 
-            'latest_t': rows.t.max(), 
-            'max_farea': rows.farea.max(),
-            'centroid': rows.centroid.iloc[0], # of latest perimeter
-            'region': region 
-        }
-        fires.append(fire) 
+
+        # need to filter out duplicate IDs from other regions that are totally outside the query range
+
+        # if any t for this fire is within range, keep it. Else skip
+        mask = (rows["t"].dt.date >= start) & (rows["t"].dt.date <= stop) 
+        if mask.any():
+            fire = {
+                'fireid': fid, 
+                'start_t': rows.t.min(), 
+                'latest_t': rows.t.max(), 
+                'max_farea': rows.farea.max(),
+                'centroid': rows.centroid.iloc[0], # of latest perimeter
+                'region': region 
+            }
+            fires.append(fire) 
 
 fires = gpd.GeoDataFrame.from_dict(fires, geometry="centroid", crs="epsg:4326")
 
