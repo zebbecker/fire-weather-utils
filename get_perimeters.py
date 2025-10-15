@@ -7,25 +7,28 @@ import sys
 import pandas as pd
 import geopandas as gpd 
 from owslib.ogcapi.features import Features 
+from helpers import iter_features_offset
 
 FIRE_ID = 415
 REGION = "CONUS"
 OUT_FILE_PREFIX = "perimeters"
 
-OGC_URL = "https://firenrt.delta-backend.com"
+OGC_URL = "https://openveda.cloud/api/features"
 api = Features(url=OGC_URL)
 
-res = api.collection_items(
-    "public.eis_fire_lf_perimeter_nrt", 
-    limit = 8000, 
-    filter=f"fireid={str(FIRE_ID)} AND region='{REGION}'"
+features = iter_features_offset(
+    api,
+    "public.eis_fire_lf_perimeter_nrt",
+    params={"filter": f"fireid={str(FIRE_ID)} AND region='{REGION}'"}, 
+    page_size=100, 
+    progress=True
 )
 
-if len(res["features"]) < 1:
+if len(features) < 1: 
     print(f"No fires found matching {REGION} fireid {FIRE_ID}")
-    sys.exit()
+    sys.exit() 
 
-gdf = gpd.GeoDataFrame.from_features(res["features"]).set_crs("epsg:4326")
+gdf = gpd.GeoDataFrame.from_features(features).set_crs("epsg:4326")
 print(f"Returned {len(gdf)} perimeters for {REGION} fireid {FIRE_ID}.")
 
 gdf["perim_t"] = pd.to_datetime(gdf["primarykey"].str.split('|').str[-1])

@@ -8,19 +8,17 @@ end or latest time, end or latest area, and current centroid.
 Output: example20241201_20241208.csv
 """
 import sys 
-import requests
 import datetime as dt 
 import pandas as pd
 import geopandas as gpd 
 from owslib.ogcapi.features import Features 
+from helpers import iter_features_offset
 
 # start date for query, inclusive 
 START = "2025-01-01T00:00:00+00:00"
 
-
 # end date for query, exclusive
 STOP = "2025-01-13T00:00:00+00:00"
-
 
 OUT_FILE_PREFIX = "fixed_example"
 
@@ -28,77 +26,51 @@ OUT_FILE_PREFIX = "fixed_example"
 # BBOX = ["-126.4", "24.0", "-61.4", "49.4"] # CONUS, roughly
 BBOX = [] # no bbox
 
-OGC_URL = "https://firenrt.delta-backend.com"
+OGC_URL = "https://openveda.cloud/api/features"
 api = Features(url=OGC_URL)
 
-
 # Initial query to get IDs of active fires 
-res = api.collection_items(
-    "public.eis_fire_lf_perimeter_nrt", 
-    bbox=BBOX, 
-    datetime=[START + "/" + STOP], 
-    limit=8000
+print("Fetching initial fire perimeters....")
+features = iter_features_offset(
+    api, 
+    "public.eis_fire_lf_perimeter_nrt",
+    params={"bbox": BBOX, "datetime": [START + "/" + STOP]},
+    page_size=100, 
+    progress=True
 )
 
-if len(res["features"]) < 1:
-    print("No fires found matching this query.")
+if len(features) < 1: 
+    print(f"No fires found for {str(BBOX)} between {START} and {STOP}")
     sys.exit()
 
-gdfs = [gpd.GeoDataFrame.from_features(res["features"])]
-next_link = next(
-    (link['href'] for link in res['links'] if link['rel'] == 'next'), None
-)
+perims = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
 
-while next_link:
-    res = requests.get(next_link).json()
-    
-    gdfs.append(
-        gpd.GeoDataFrame.from_features(res["features"])
-    )
-    
-    next_link = next(
-        (link['href'] for link in perims['links'] if link['rel'] == 'next'), None
-    )
-
-
-perims = pd.concat(gdfs, ignore_index=True)
-
-print(f"Returned {len(perims)} perimeters")
+print(f"Returned {len(perims)} perimeters") 
 
 ids = perims.fireid.astype(int).unique()
 
 
 # Second query to get full history of these fires, 
 # even if they started or ended outside of date range
-res = api.collection_items(
+print(f"Fetching full fire history for {len(ids)} fires...")
+
+features = iter_features_offset(
+    api, 
     "public.eis_fire_lf_perimeter_nrt", 
-    bbox=BBOX, 
-    limit=8000,
-    filter="fireid IN (" + ",".join([str(i) for i in ids]) + ")"
-    # filter="farea>5 AND fireid IN (" + ",".join([str(i) for i in ids]) + ")"
+    params={
+        "bbox": BBOX, 
+        "filter": "fireid IN (" + ",".join([str(i) for i in ids]) +")"
+    }, 
+    page_size=100,
+    progress=True
 )
 
-gdfs = [gpd.GeoDataFrame.from_features(res["features"]).set_crs("EPSG:4326")]
-next_link = next(
-    (link['href'] for link in res['links'] if link['rel'] == 'next'), None
-)
-while next_link:
-    # print("Retrieving next page ...")
-    res = requests.get(next_link).json()
-    gdfs.append(
-        gpd.GeoDataFrame.from_features(res["features"]).set_crs("epsg:4326")
-    )
-
-    next_link = next(
-        (link['href'] for link in res['links'] if link['rel'] == 'next'), None
-    )
-
-gdf = pd.concat(gdfs, ignore_index=True)
+gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326") 
 
 gdf["t"] = pd.to_datetime(gdf["t"])
 
-start = pd.Timestamp(START).date()
-stop = pd.Timestamp(STOP).date()
+start = pd.Timestamp(START).date() 
+stop = pd.Timestamp(STOP).date() 
 
 # output csv with centroid, start time, latest time, latest size for each fireid
 fires = []
