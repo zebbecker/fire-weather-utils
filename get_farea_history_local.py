@@ -56,7 +56,7 @@ with open(FIRE_ID_PATH, newline='') as csvfile:
         FIRE_ID = int(float(row['fireid']))
 		
         # Filter by fire ID and region
-        filtered = gdf[(gdf["fireID"] == FIRE_ID) & (gdf["region"] == REGION)]
+        filtered = gdf[(gdf["fireID"] == FIRE_ID) & (gdf["region"] == REGION)].copy()
 
         if len(filtered) < 1:
             print(f"No fires found matching {REGION} fireid {FIRE_ID}")

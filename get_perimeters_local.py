@@ -48,7 +48,6 @@ gdf = gpd.read_file(DOWNLOADED_FILEPATH)
 if not os.path.exists(OUT_DIR):
     os.mkdir(OUT_DIR)
 
-gdf = gpd.read_file(DOWNLOADED_FILEPATH)
 
 # read the coordinates in the csv
 with open(FIRE_ID_PATH, newline='') as csvfile:
@@ -56,7 +55,7 @@ with open(FIRE_ID_PATH, newline='') as csvfile:
     for row in fireIDTable:
         FIRE_ID = int(float(row['fireid']))
 
-        filtered = gdf[(gdf["fireID"] == FIRE_ID) & (gdf["region"] == REGION)]
+        filtered = gdf[(gdf["fireID"] == FIRE_ID) & (gdf["region"] == REGION)].copy()
 
         if len(filtered) < 1:
             print(f"No fires found matching {REGION} fireid {FIRE_ID}")
@@ -69,6 +68,8 @@ with open(FIRE_ID_PATH, newline='') as csvfile:
             filtered["perim_t"] = pd.to_datetime(filtered["primarykey"].str.split('|').str[-1])
             filtered = filtered.sort_values(by="perim_t", ascending=True)
             filtered["perim_t"] = filtered["perim_t"].astype(str)
+            filtered["t_st"] = filtered["t_st"].astype(str) 
+            filtered["t_ed"] = filtered["t_ed"].astype(str)
 
             outpath = OUT_DIR + OUT_FILE_PREFIX + '_' + REGION +'_' + str(FIRE_ID)
             filtered.to_file(outpath, index=False)
